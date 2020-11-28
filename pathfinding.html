@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	</head>
+	<body style="margin: 0; overflow: hidden;">
+		<canvas id="canvas" style="border: 2px solid grey;"></canvas>
+		<script>
+			const canvas = document.getElementById("canvas");
+			const ctx = canvas.getContext("2d");
+			
+			let board = [];
+			let openSet = [];
+			let closedSet = [];
+			let start, end, path = [], over = false;
+			let current, interval, paused = true;
+			let width = 30, height = 30;
+			let TIME = 1000 / 40;
+			
+			canvas.width = 15 * width;
+			canvas.height = 15 * height + 50;
+						
+			class Spot
+			{
+				constructor(x, y)
+				{
+					this.f = this.g = this.h = 0;
+					this.x = x, this.y = y;
+					this.neighbours = [];
+					this.previous = null;
+					this.isObstacle = Math.random() < .3;
+				}
+			}
+			
+			for (let x = 0; x < width; x++)
+			{
+				board.push([]);
+				for (let y = 0; y < height; y++)
+				{
+					board[board.length - 1][y] = new Spot(x, y);
+				}
+			}
+			
+			start = board[0][0];
+			end = board[width - 1][height - 1];
+			
+			start.isObstacle = false;
+			end.isObstacle = false;
+			
+			let numOfLoops = 0;
+			
+			start.dist = 0;
+			
+			openSet.push(start);
+
+			function displayBoard(board)
+			{
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+				
+				ctx.fillStyle = "grey";
+				ctx.fillRect(0, 0, canvas.width, 15 * height);
+				
+				for (let arr in board)
+				{
+					for (let tile in board[arr])
+					{
+						let t = board[arr][tile];
+						
+						if (t.isObstacle)
+						{
+							ctx.fillStyle = "black";
+							ctx.fillRect(t.x * 15, t.y * 15, 15, 15);
+						}
+						else
+						{
+							ctx.fillStyle = "rgba(200, 200, 200, 1)";
+							ctx.fillRect(t.x * 15 + 1, t.y * 15 + 1, 13, 13);
+						}
+					}
+				}
+				
+				for (let tile of closedSet)
+				{
+					ctx.fillStyle = "rgba(255, 0, 0, 1)";
+					ctx.fillRect(tile.x * 15 + 1, tile.y * 15 + 1, 13, 13);
+				}
+				
+				for (let tile of openSet)
+				{
+					ctx.fillStyle = "rgba(0, 255, 0, 1)";
+					ctx.fillRect(tile.x * 15 + 1, tile.y * 15 + 1, 13, 13);
+				}
+				
+				if (current)
+				{
+					let temp = current;
+					path = [temp];
+
+					while (temp.previous)
+					{
+						path.push(temp.previous);
+						temp = temp.previous;
+					}
+
+					for (let tile of path)
+					{
+						ctx.fillStyle = "rgba(0, 0, 255, 1)";
+						ctx.fillRect(tile.x * 15 + 1, tile.y * 15 + 1, 13, 13);
+					}
+				}
+				
+				ctx.fillStyle = "black";
+				ctx.font = "20px Arial";
+				ctx.fillText("Dijkstra's Algorithm", 10, canvas.height - 20);
+				ctx.fillText("Total loops: " + numOfLoops, canvas.width - 150, canvas.height - 20);
+			}
+			
+			function update()
+			{
+				numOfLoops++;
+				if (openSet.length === 0)
+				{
+					alert("No solution");
+										
+					over = true;
+				}
+				else
+				{
+					let winner = 0;
+					
+					for (let i = 0; i < openSet.length; i++)
+					{
+						if (openSet[i].dist < openSet[winner].dist)
+						{
+							winner = i;
+						}
+					}
+					
+					current = openSet[winner];
+					
+					if (current === end)
+					{
+						let temp = current;
+						path = [temp];
+						
+						while (temp.previous)
+						{
+							path.push(temp.previous);
+							temp = temp.previous;
+						}
+						
+						console.log("Solution found");
+						
+						over = true;
+					}
+					
+					closedSet.push(current);
+					removeFromArray(openSet, current);
+					
+					for (let n of current.neighbours)
+					{
+						if (closedSet.includes(n)) { continue }
+						
+						let tempDist = current.dist + 1;
+						
+						if (openSet.includes(n))
+						{
+							if (tempDist < n.g)
+							{
+								n.dist = tempDist;
+								n.previous = current;
+							}
+						}
+						else
+						{
+							n.dist = tempDist;
+							openSet.push(n);
+							n.previous = current;
+						}
+						
+					}
+				}
+				
+				displayBoard(board);
+				
+				if (!over)
+				{
+					window.setTimeout(update, TIME);
+				}
+			}
+			
+			function removeFromArray(array, element)
+			{
+				for (let i = array.length - 1; i > -1; i--)
+				{
+					if (array[i] === element)
+					{
+						array.splice(i, 1);
+					}
+				}
+			}
+			
+			function addNeighbours()
+			{
+				for (let x = 0; x < width; x++)
+				{
+					for (let y = 0; y < height; y++)
+					{
+						let spot = board[x][y];
+						
+						let left  = getTileAtPos(x - 1, y);
+						let right = getTileAtPos(x + 1, y);
+						let up    = getTileAtPos(x, y - 1);
+						let down  = getTileAtPos(x, y + 1);
+						
+						left && !left.isObstacle && spot.neighbours.push(left);
+						right && !right.isObstacle && spot.neighbours.push(right);
+						up && !up.isObstacle && spot.neighbours.push(up);
+						down && !down.isObstacle && spot.neighbours.push(down);
+					}
+				}
+			}
+			
+			addNeighbours();
+			
+			function getTileAtPos(x, y)
+			{
+				if (typeof board[x] === "undefined" ||
+					typeof board[x][y] === "undefined")
+				{
+					return false;
+				}
+				
+				return board[x][y];
+			}
+			
+			window.addEventListener("keydown", event =>
+			{
+				if (event.key === " ")
+				{
+					//update();
+				}
+			});
+			
+			update();
+						
+			function pause()
+			{
+				if (over) { return }
+				paused = !paused;
+			}
+			
+			displayBoard(board);
+			
+			window.setInterval(function() { displayBoard(board) }, 50);
+		</script>
+	</body>
+</html>
